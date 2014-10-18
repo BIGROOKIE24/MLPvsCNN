@@ -318,7 +318,7 @@ def test_dA(learning_rate=0.1, training_epochs=50,
 	output.close()
 
 usage="""
-	 $> python dA.py [int : visible_layer][int : hidden_layer] [float: corruption_rate] [string: filen_name_for_dump]
+	 $> python dA.py [int : visible_layer][int : hidden_layer] [float: corruption_rate] [string: filen_name_for_dump] [string: dataset]
 """
 if __name__ == '__main__':
 	try:
@@ -326,8 +326,8 @@ if __name__ == '__main__':
 		hidden_size = int(sys.argv[2])
 		corruption_rate = float(sys.argv[3])
 		fname = sys.argv[4]
-		print hidden_size,corruption_rate
-		test_dA(visible_size = visible_size, hidden_size=hidden_size,corruption_rate=corruption_rate,fname=fname)
+		benchmark = sys.argv[5]
 	except:
 		print usage
 		exit(1)
+	test_dA(visible_size = visible_size, hidden_size=hidden_size,corruption_rate=corruption_rate,fname=fname,dataset=benchmark)

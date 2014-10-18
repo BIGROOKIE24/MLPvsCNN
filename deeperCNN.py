@@ -21,14 +21,14 @@ References:
    http://yann.lecun.com/exdb/publis/pdf/lecun-98.pdf
 
 """
-import cPickle as pickle
+import cPickle
 import gzip
 import os
 import sys
 import time
-import traceback
+
 import numpy
-from dA import dA
+
 import theano
 import theano.tensor as T
 from theano.tensor.signal import downsample
@@ -103,7 +103,7 @@ class LeNetConvPoolLayer(object):
 		self.params = [self.W, self.b]
 
 
-def evaluate_lenet5(learning_rate=0.1, n_epochs=200,dataset='mnist.pkl.gz',nkerns0=20, nkerns1=50, batch_size=500,pool_size = 2,filtering=5,hidden_size=500,height=28,width=28,dW=numpy.zeros((1,1)),dbias=1,denshape=1):
+def evaluate_lenet5(learning_rate=0.1, n_epochs=200,dataset='mnist.pkl.gz',nkerns0=20, nkerns1=50, batch_size=500,pool_size = 2,filtering=5,hidden_size=500,height=28,width=28):
 	""" Demonstrates lenet on MNIST dataset
 
 	:type learning_rate: float
@@ -139,8 +139,6 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,dataset='mnist.pkl.gz',nkern
 	n_valid_batches /= batch_size
 	n_test_batches /= batch_size
 
-	denW = theano.shared(value=dW,name='denW', borrow=True)
-	denB = theano.shared(value=dbias,name='denb', borrow=True)
 	# allocate symbolic variables for the data
 	index = T.lscalar()	 # index to a [mini]batch
 	x = T.matrix('x')	# the data is presented as rasterized images
@@ -172,10 +170,15 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,dataset='mnist.pkl.gz',nkern
 	l1w = (width-filtering+1)/pool_size
 	layer1 = LeNetConvPoolLayer(rng, input=layer0.output,image_shape=(batch_size, nkerns[0], l1h, l1w), filter_shape=(nkerns[1], nkerns[0], filtering, filtering), poolsize=poolsize)
 
+	l1h = (l1h-filtering+1)/pool_size
+	l1w = (l1w-filtering+1)/pool_size
+	layer15 = LeNetConvPoolLayer(rng, input=layer1.output,image_shape=(batch_size, nkerns[1], l1h, l1w), filter_shape=(nkerns[1], nkerns[1], filtering, filtering), poolsize=poolsize)
+
+
 	# the HiddenLayer being fully-connected, it operates on 2D matrices of
 	# shape (batch_size,num_pixels) (i.e matrix of rasterized images).
 	# This will generate a matrix of shape (20,32*4*4) = (20,512)
-	layer2_input = layer1.output.flatten(2)
+	layer2_input = layer15.output.flatten(2)
 
 	l1h = (l1h-filtering+1)/pool_size
 	l1w = (l1w-filtering+1)/pool_size
@@ -184,10 +187,7 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,dataset='mnist.pkl.gz',nkern
 						 n_out=n_out, activation=T.tanh)
 
 	# classify the values of the fully-connected sigmoidal layer
-	unsup_feats = T.nnet.sigmoid(T.dot(x, denW) + denB)
-	final_layer = T.concatenate([layer2.output,unsup_feats], axis=1)
-
-	layer3 = LogisticRegression(input=final_layer, n_in=n_in+denshape, n_out=10)
+	layer3 = LogisticRegression(input=layer2.output, n_in=n_in, n_out=10)
 
 	# the cost we minimize during training is the NLL of the model
 	cost = layer3.negative_log_likelihood(y)
@@ -209,6 +209,11 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,dataset='mnist.pkl.gz',nkern
 	# create a list of gradients for all model parameters
 	grads = T.grad(cost, params)
 
+	# train_model is a function that updates the model parameters by
+	# SGD Since this model has many parameters, it would be tedious to
+	# manually create an update rule for each model parameter. We thus
+	# create the updates list by automatically looping over all
+	# (params[i],grads[i]) pairs.
 	updates = []
 	for param_i, grad_i in zip(params, grads):
 		updates.append((param_i, param_i - learning_rate * grad_i))
@@ -298,7 +303,7 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,dataset='mnist.pkl.gz',nkern
 
 usage = """
 
-	$> THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python test.py 0.1 100 500 20 50 5 2 28 28 100 mnist.pkl.gz denoiser-pickled-file
+	$> THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python test.py 0.1 100 500 20 50 5 2 100
 """
 if __name__ == '__main__':
 	try:
@@ -313,17 +318,8 @@ if __name__ == '__main__':
 		height = int(sys.argv[8])
 		width = int(sys.argv[9])
 		hidden_size = int(sys.argv[10])
-
-		pkl_file = open(sys.argv[11], 'rb')
-		benchmark = sys.argv[12]
-		denoiser = pickle.load(pkl_file)
-
-		dW = denoiser.W.get_value()
-		dbias = denoiser.b.get_value()
-		(dummy,denshape) = dW.shape
-		evaluate_lenet5(learning_rate=learning_rate,n_epochs=n_epochs,nkerns0=nkerns0, nkerns1=nkerns1, batch_size=batch_size,pool_size = pool_size,filtering=filtering,hidden_size=hidden_size,dW=dW,dbias = dbias,denshape=denshape,dataset = benchmark)
-
-	except Exception:
-		print traceback.format_exc()
+		benchmark = sys.argv[11]
+	except:
 		print usage
 		exit(1)
+	evaluate_lenet5(learning_rate=learning_rate,n_epochs=n_epochs,nkerns0=nkerns0, nkerns1=nkerns1, batch_size=batch_size,pool_size = pool_size,filtering=filtering,hidden_size=hidden_size,height=height,width=width,dataset=benchmark)
