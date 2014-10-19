@@ -21,6 +21,7 @@ References:
    http://yann.lecun.com/exdb/publis/pdf/lecun-98.pdf
 
 """
+from inputParser import get_parser
 import cPickle as pickle
 import gzip
 import os
@@ -103,7 +104,7 @@ class LeNetConvPoolLayer(object):
 		self.params = [self.W, self.b]
 
 
-def evaluate_lenet5(learning_rate=0.1, n_epochs=200,dataset='mnist.pkl.gz',nkerns0=20, nkerns1=50, batch_size=500,pool_size = 2,filtering=5,hidden_size=500,height=28,width=28,dW=numpy.zeros((1,1)),dbias=1,denshape=1):
+def evaluate_lenet5(learning_rate=0.1,l_decay = 1, n_epochs=200,dataset='mnist.pkl.gz',nkerns0=20, nkerns1=50, batch_size=500,pool_size = 2,filtering=5,hidden_size=500,height=28,width=28,dW=numpy.zeros((1,1)),dbias=1,denshape=1):
 	""" Demonstrates lenet on MNIST dataset
 
 	:type learning_rate: float
@@ -296,34 +297,14 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,dataset='mnist.pkl.gz',nkern
 						  os.path.split(__file__)[1] +
 						  ' ran for %.2fm' % ((end_time - start_time) / 60.))
 
-usage = """
-
-	$> THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python test.py 0.1 100 500 20 50 5 2 28 28 100 mnist.pkl.gz denoiser-pickled-file
-"""
 if __name__ == '__main__':
-	try:
-#		evaluate_lenet5(nkerns0=20, nkerns1=50, batch_size=500,pool_size = 2,filtering=5,hidden_size=500)
-		learning_rate = float(sys.argv[1])
-		n_epochs = int(sys.argv[2])
-		batch_size = int(sys.argv[3])
-		nkerns0 = int(sys.argv[4])
-		nkerns1 = int(sys.argv[5])
-		filtering = int(sys.argv[6])
-		pool_size = int(sys.argv[7])
-		height = int(sys.argv[8])
-		width = int(sys.argv[9])
-		hidden_size = int(sys.argv[10])
+	parser = get_parser()
+	p = parser.parse_args()
 
-		pkl_file = open(sys.argv[11], 'rb')
-		benchmark = sys.argv[12]
-		denoiser = pickle.load(pkl_file)
+	pkl_file = open(p.da_file, 'rb')
+	denoiser = pickle.load(pkl_file)
+	dW = denoiser.W.get_value()
+	dbias = denoiser.b.get_value()
+	(dummy,denshape) = dW.shape
 
-		dW = denoiser.W.get_value()
-		dbias = denoiser.b.get_value()
-		(dummy,denshape) = dW.shape
-		evaluate_lenet5(learning_rate=learning_rate,n_epochs=n_epochs,nkerns0=nkerns0, nkerns1=nkerns1, batch_size=batch_size,pool_size = pool_size,filtering=filtering,hidden_size=hidden_size,dW=dW,dbias = dbias,denshape=denshape,dataset = benchmark)
-
-	except Exception:
-		print traceback.format_exc()
-		print usage
-		exit(1)
+	evaluate_lenet5(learning_rate = p.learning_rate, l_decay = p.l_decay,  n_epochs = p.n_epochs, nkerns0 = p.nkerns0, nkerns1 = p.nkerns1, batch_size = p.batch_size, pool_size = p.pool_size, filtering = p.filtering, hidden_size = p.hidden_size, dW = dW, dbias = dbias, denshape = denshape, dataset = p.benchmark)

@@ -21,6 +21,7 @@ References:
    http://yann.lecun.com/exdb/publis/pdf/lecun-98.pdf
 
 """
+from inputParser import get_parser
 import cPickle
 import gzip
 import os
@@ -103,7 +104,7 @@ class LeNetConvPoolLayer(object):
 		self.params = [self.W, self.b]
 
 
-def evaluate_lenet5(learning_rate=0.1, n_epochs=200,dataset='mnist.pkl.gz',nkerns0=20, nkerns1=50, batch_size=500,pool_size = 2,filtering=5,hidden_size=500,height=28,width=28):
+def evaluate_lenet5(learning_rate=0.1, n_epochs=200,dataset='mnist.pkl.gz',nkerns0=20, nkerns1=50, batch_size=500,pool_size = 2,filtering=5,hidden_size=500,height=28,width=28,channel=1):
 	""" Demonstrates lenet on MNIST dataset
 
 	:type learning_rate: float
@@ -154,13 +155,36 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,dataset='mnist.pkl.gz',nkern
 
 	# Reshape matrix of rasterized images of shape (batch_size,28*28)
 	# to a 4D tensor, compatible with our LeNetConvPoolLayer
-	layer0_input = x.reshape((batch_size, 1, height, width))
+	# im_channel = channel
+	# im_height = height
+	# im_width = width
+	# filter_size = (filtering,filtering)
+	layer0_input = x.reshape((batch_size, channel, height, width))
+	# input_size = (height,width)
+	# layer0 = LeNetConvPoolLayer(rng, input=layer0_input,
+	# 							image_shape=(batch_size, im_channel, im_height, im_width),
+	# 							filter_shape=(nkerns[0], im_channel, filter_size[0], filter_size[1]),
+	# 							poolsize=poolsize)
+	# input_size = ((input_size[0] - filter_size[0] + 1) / poolsize[0],
+	# 			  (input_size[1] - filter_size[1] + 1) / poolsize[1])
 
+	# layer1 = LeNetConvPoolLayer(rng, input=layer0.output,
+	# 							image_shape=(batch_size, im_channel, im_height, im_width),
+	# 							filter_shape=(nkerns[0], im_channel, filter_size[0], filter_size[1]),
+	# 							poolsize=poolsize)
+	# input_size = ((input_size[0] - filter_size[0] + 1) / poolsize[0],
+	# 			  (input_size[1] - filter_size[1] + 1) / poolsize[1])
+
+	# layer2_input = layer1.output.flatten(2)
+	# layer2 = HiddenLayer(rng, input=layer2_input, n_in=nkerns[1] * input_size[0] * input_size[1],
+	# 					 n_out=500, activation=T.tanh)
+
+	# layer3 = LogisticRegression(input=layer2.output, n_in=500, n_out=10)
 	# Construct the first convolutional pooling layer:
 	# filtering reduces the image size to (28-5+1,28-5+1)=(24,24)
 	# maxpooling reduces this further to (24/2,24/2) = (12,12)
 	# 4D output tensor is thus of shape (batch_size,nkerns[0],12,12)
-	layer0 = LeNetConvPoolLayer(rng, input=layer0_input, image_shape=(batch_size, 1, height, width),filter_shape=(nkerns[0], 1, filtering, filtering), poolsize=poolsize)
+	layer0 = LeNetConvPoolLayer(rng, input=layer0_input, image_shape=(batch_size, channel, height, width),filter_shape=(nkerns[0], channel, filtering, filtering), poolsize=poolsize)
 
 	# Construct the second convolutional pooling layer
 	# filtering reduces the image size to (12-5+1,12-5+1)=(8,8)
@@ -212,7 +236,6 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,dataset='mnist.pkl.gz',nkern
 	updates = []
 	for param_i, grad_i in zip(params, grads):
 		updates.append((param_i, param_i - learning_rate * grad_i))
-
 	train_model = theano.function([index], cost, updates=updates,
 		  givens={
 			x: train_set_x[index * batch_size: (index + 1) * batch_size],
@@ -296,25 +319,7 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,dataset='mnist.pkl.gz',nkern
 						  os.path.split(__file__)[1] +
 						  ' ran for %.2fm' % ((end_time - start_time) / 60.))
 
-usage = """
-
-	$> THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python test.py 0.1 100 500 20 50 5 2 100 mnist.pkl.gz
-"""
 if __name__ == '__main__':
-	try:
-#		evaluate_lenet5(nkerns0=20, nkerns1=50, batch_size=500,pool_size = 2,filtering=5,hidden_size=500)
-		learning_rate = float(sys.argv[1])
-		n_epochs = int(sys.argv[2])
-		batch_size = int(sys.argv[3])
-		nkerns0 = int(sys.argv[4])
-		nkerns1 = int(sys.argv[5])
-		filtering = int(sys.argv[6])
-		pool_size = int(sys.argv[7])
-		height = int(sys.argv[8])
-		width = int(sys.argv[9])
-		hidden_size = int(sys.argv[10])
-		benchmark = sys.argv[11]
-	except:
-		print usage
-		exit(1)
-	evaluate_lenet5(learning_rate=learning_rate,n_epochs=n_epochs,nkerns0=nkerns0, nkerns1=nkerns1, batch_size=batch_size,pool_size = pool_size,filtering=filtering,height=height,width=width,hidden_size=hidden_size,dataset=benchmark)
+	parser = get_parser()
+	p = parser.parse_args()
+	evaluate_lenet5(learning_rate=p.learning_rate,n_epochs=p.n_epochs,nkerns0=p.nkerns0,nkerns1=p.nkerns1,filtering=p.filtering,pool_size=p.pool_size,channel=p.channel,width=p.width,height=p.height,hidden_size=p.hidden_size,dataset=p.benchmark)
