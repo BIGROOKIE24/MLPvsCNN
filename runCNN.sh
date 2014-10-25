@@ -1,21 +1,30 @@
 #!/usr/bin/sh
 script=$1
-benchmark=$2
-channel=$3
-height=$4
-width=$5
-denoiserAE=$6
+act=$2
+network_type=$3
 n_epochs=200
 batch_size=500
 nkerns0=20
 nkerns1=50
 filtering=5
 poolsize=2
-for l_rate in "0.1" "0.2" "0.3" "0.4" "0.5"
+benchmark=cifar10small.pkl.gz
+
+for l_rate in "0.01"
 do
-    for hidden_size in {300..1100..200}
+    for hidden_size in 900 #{900..500..200}
     do
-#	eval "THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python $script $l_rate $n_epochs $batch_size $nkerns0 $nkerns1 $filtering $poolsize $channel $height $width $hidden_size $denoiserAE $benchmark" > exp-logs/exp.log.$l_rate.$hidden_size 2> exp-logs/exp.err.$l_rate.$hidden_size
-	echo "THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python $script $l_rate $n_epochs $batch_size $nkerns0 $nkerns1 $filtering $poolsize $channel $height $width $hidden_size $denoiserAE $benchmark"
+	for nkerns0 in 50 20
+	do
+	    for nkerns1 in 50 20
+	    do
+		for filter in 5
+		do
+	     	    echo "python $script --lrate $l_rate --b_size 200 --k_size0 $nkerns0 --k_size1 $nkerns1 --filter $filtering --channel 3 --height 32 --width 32 --hidden $hidden_size --benchmark $benchmark --activation $act $network_type"
+#		    python $script --lrate $l_rate --b_size 200 --k_size0 $nkerns0 --k_size1 $nkerns1 --filter $filtering --channel 3 --height 32 --width 32 --hidden $hidden_size --benchmark $benchmark --activation $act $network_type > exp-logs/log/exp-log-$l_rate-$hidden_size-$nkerns0-$nkerns1-$filtering-$act 2> exp-logs/err/exp-err-$l_rate-$hidden_size-$nkerns0-$nkerns1-$filtering-$act
+		done
+	    done
+	done
     done
 done
+
