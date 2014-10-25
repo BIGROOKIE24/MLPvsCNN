@@ -215,7 +215,7 @@ class dA(object):
 		"""
 		return	T.nnet.sigmoid(T.dot(hidden, self.W_prime) + self.b_prime)
 
-	def get_cost_updates(self, corruption_level, learning_rate,l_decay):
+	def get_cost_updates(self, corruption_level, learning_rate):
 		""" This function computes the cost and the updates for one trainng
 		step of the dA """
 
@@ -240,13 +240,12 @@ class dA(object):
 		updates = []
 		for param, gparam in zip(self.params, gparams):
 			updates.append((param, param - learning_rate * gparam))
-#			learning_rate = learning_rate * l_decay
 		return (cost, updates)
 
 
-def test_dA(learning_rate=0.1, l_decay = 1, n_epochs=50,
+def test_dA(learning_rate=0.1, n_epochs=50,
 			dataset='mnist.pkl.gz',
-			batch_size=20,visible_size=784,hidden_size=1000,corruption_rate=0.3,fname='da-1000-030.pkl.out'):
+			batch_size=20,visible_size=784,hidden_size=1000,corruption_rate=0.3,fname='da-1000-030-mnsit.pkl.out'):
 
 	"""
 	This demo is tested on MNIST
@@ -283,7 +282,7 @@ def test_dA(learning_rate=0.1, l_decay = 1, n_epochs=50,
 			n_visible= visible_size, n_hidden=hidden_size)
 
 	cost, updates = da.get_cost_updates(corruption_level=corruption_rate,
-										learning_rate=learning_rate,l_decay = l_decay)
+										learning_rate=learning_rate)
 
 	train_da = theano.function([index], cost, updates=updates,
 		 givens={x: train_set_x[index * batch_size:
@@ -319,4 +318,4 @@ def test_dA(learning_rate=0.1, l_decay = 1, n_epochs=50,
 if __name__ == '__main__':
 	parser = get_parser_AE()
 	p = parser.parse_args()
-	test_dA(learning_rate = p.learning_rate,l_decay = p.l_decay,n_epochs = p.n_epochs,visible_size = p.visible_size, hidden_size = p.hidden_size,corruption_rate = p.corruption_rate, fname = p.fname, dataset = p.benchmark)
+	test_dA(learning_rate = p.learning_rate, n_epochs = p.n_epochs, visible_size = p.visible_size, hidden_size = p.hidden_size, corruption_rate = p.corruption_rate, fname = p.fname, dataset = p.benchmark)

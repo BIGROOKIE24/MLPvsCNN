@@ -1,10 +1,11 @@
 import argparse
+import theano.tensor as T
 
 def get_parser():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--lrate', action='store', dest='learning_rate',help='Learning Rate, default = 0.1',type=float,default = 0.1)
 
-	parser.add_argument('--lr_decay', action='store', dest='l_decay',help='Learning Rate decay, default = 1',type=float,default = 1)
+	parser.add_argument('--lr_decay', action='store', dest='lr_decay',help='Learning Rate decay, default = 0.998',type=float,default = 0.998)
 
 	parser.add_argument('--epochs', action='store', dest='n_epochs',help='# of epochs, default = 200',type=int,default = 200)
 
@@ -27,7 +28,17 @@ def get_parser():
 
 	parser.add_argument('--benchmark', action='store', dest='benchmark',help='benchmark name, default = mnist.pkl.gz',default = 'mnist.pkl.gz')
 
-	parser.add_argument('--denoiser-ae', action='store', dest='da_file',help='denoiser autoencoder file name')
+	parser.add_argument('--denoiser-ae', action='store', dest='da_file',help='denoiser autoencoder file name,',default = "")
+
+	parser.add_argument('--activation', action='store', dest='act',help='activation function {Tanh,ReLU,Sigmoid}, default = Tanh',default = 'Tanh')
+
+	parser.add_argument('--conv-layer', action='store_true', dest='conv_layer',help='Additional Conv Layer{True | False} , default = False',)
+
+	parser.add_argument('--hidden-layer', action='store_true', dest='hidden_layer',help='Additional Hidden Layer{True | False} , default = False')
+
+	parser.set_defaults(hidden_layer = False)
+	parser.set_defaults(conv_layer = False)
+
 	return parser
 
 
@@ -35,7 +46,6 @@ def get_parser():
 def get_parser_AE():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--lrate', action='store', dest='learning_rate',help='Learning Rate, default = 0.1',type=float,default = 0.1)
-	parser.add_argument('--lr_decay', action='store', dest='l_decay',help='Learning Rate decay, default = 1',type=float,default = 1)
 
 	parser.add_argument('--epochs', action='store', dest='n_epochs',help='# of epochs, default = 50',type=int,default = 50)
 
