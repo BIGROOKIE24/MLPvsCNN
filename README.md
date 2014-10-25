@@ -5,8 +5,8 @@ Comparison of Multilayer Perceptron and Convoulutional Nets on Image Recognition
 
 To list the options, run :
 
-   python customizedCNN.py --help
+    python customizedCNN.py --help
   
 or to use denoiser autoencoder, run:
 
-   python dA.py --help
+    python dA.py --help
