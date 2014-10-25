@@ -38,11 +38,25 @@ from theano.tensor.nnet import conv
 from logistic_sgd import LogisticRegression, load_data
 from mlp import HiddenLayer
 
+#### rectified linear unit
+def ReLU(x):
+	y = T.maximum(0.0, x)
+#	y = T.log(1 + T.exp(x))
+	return(y)
+#### sigmoid
+def Sigmoid(x):
+	y = T.nnet.sigmoid(x)
+	return(y)
+#### tanh
+def Tanh(x):
+	y = T.tanh(x)
+	return(y)
+act = {'ReLU' : ReLU,'Sigmoid' : Sigmoid,'Tanh' : Tanh}
 
 class LeNetConvPoolLayer(object):
 	"""Pool Layer of a convolutional network """
 
-	def __init__(self, rng, input, filter_shape, image_shape, poolsize=(2, 2)):
+	def __init__(self, rng, input, filter_shape, image_shape, poolsize=(2, 2), activation = Tanh):
 		"""
 		Allocate a LeNetConvPoolLayer with shared variable internal parameters.
 
@@ -66,6 +80,7 @@ class LeNetConvPoolLayer(object):
 
 		assert image_shape[1] == filter_shape[1]
 		self.input = input
+		self.activation = activation
 
 		# there are "num input feature maps * filter height * filter width"
 		# inputs to each hidden unit
@@ -98,13 +113,13 @@ class LeNetConvPoolLayer(object):
 		# reshape it to a tensor of shape (1,n_filters,1,1). Each bias will
 		# thus be broadcasted across mini-batches and feature map
 		# width & height
-		self.output = T.tanh(pooled_out + self.b.dimshuffle('x', 0, 'x', 'x'))
+		self.output = self.activation(pooled_out + self.b.dimshuffle('x', 0, 'x', 'x'))
 
 		# store parameters of this layer
 		self.params = [self.W, self.b]
 
 
-def evaluate_lenet5(learning_rate=0.1,l_decay = 1, n_epochs=200,dataset='mnist.pkl.gz',nkerns0=20, nkerns1=50, batch_size=500,pool_size = 2,filtering=5,hidden_size=500,height=28,width=28,dW=numpy.zeros((1,1)),dbias=1,denshape=1):
+def evaluate_lenet5(init_learning_rate=0.1 , lr_decay = 1, n_epochs=200,dataset='mnist.pkl.gz',nkerns0=20, nkerns1=50, batch_size=500,pool_size = 2, filtering=5 ,hidden_size=500,height=28,width=28,dW=numpy.zeros((1,1)), dbias=1, denshape=1, hidden_layer = False, conv_layer = False, activation = Tanh, channel = 1):
 	""" Demonstrates lenet on MNIST dataset
 
 	:type learning_rate: float
@@ -147,7 +162,8 @@ def evaluate_lenet5(learning_rate=0.1,l_decay = 1, n_epochs=200,dataset='mnist.p
 	x = T.matrix('x')	# the data is presented as rasterized images
 	y = T.ivector('y')	# the labels are presented as 1D vector of
 						# [int] labels
-
+	learning_rate = theano.shared(numpy.asarray(init_learning_rate,
+        dtype=theano.config.floatX))
 	ishape = (height, width)  # this is the size of MNIST images
 
 	######################
@@ -157,43 +173,57 @@ def evaluate_lenet5(learning_rate=0.1,l_decay = 1, n_epochs=200,dataset='mnist.p
 
 	# Reshape matrix of rasterized images of shape (batch_size,28*28)
 	# to a 4D tensor, compatible with our LeNetConvPoolLayer
-	layer0_input = x.reshape((batch_size, 1, height, width))
+	layer0_input = x.reshape((batch_size, channel, height, width))
 
 	# Construct the first convolutional pooling layer:
 	# filtering reduces the image size to (28-5+1,28-5+1)=(24,24)
 	# maxpooling reduces this further to (24/2,24/2) = (12,12)
 	# 4D output tensor is thus of shape (batch_size,nkerns[0],12,12)
-	layer0 = LeNetConvPoolLayer(rng, input=layer0_input, image_shape=(batch_size, 1, height, width),filter_shape=(nkerns[0], 1, filtering, filtering), poolsize=poolsize)
+	layer0 = LeNetConvPoolLayer(rng, input=layer0_input, image_shape=(batch_size, channel, height, width),filter_shape=(nkerns[0], channel, filtering, filtering), poolsize=poolsize)
 
 	# Construct the second convolutional pooling layer
 	# filtering reduces the image size to (12-5+1,12-5+1)=(8,8)
 	# maxpooling reduces this further to (8/2,8/2) = (4,4)
 	# 4D output tensor is thus of shape (nkerns[0],nkerns[1],4,4)
+	params = []
+
 	l1h = (height-filtering+1)/pool_size
 	l1w = (width-filtering+1)/pool_size
+
 	layer1 = LeNetConvPoolLayer(rng, input=layer0.output,image_shape=(batch_size, nkerns[0], l1h, l1w), filter_shape=(nkerns[1], nkerns[0], filtering, filtering), poolsize=poolsize)
 
-	# the HiddenLayer being fully-connected, it operates on 2D matrices of
-	# shape (batch_size,num_pixels) (i.e matrix of rasterized images).
-	# This will generate a matrix of shape (20,32*4*4) = (20,512)
-	layer2_input = layer1.output.flatten(2)
+	if conv_layer == True:
+		l1h = (l1h-filtering+1)/pool_size
+		l1w = (l1w-filtering+1)/pool_size
+		layer15 = LeNetConvPoolLayer(rng, input=layer1.output,image_shape=(batch_size, nkerns[1], l1h, l1w), filter_shape=(nkerns[1], nkerns[1], filtering, filtering), poolsize=poolsize)
+		layer2_input = layer15.output.flatten(2)
+		params = layer15.params
+	else:
+		layer2_input = layer1.output.flatten(2)
 
 	l1h = (l1h-filtering+1)/pool_size
 	l1w = (l1w-filtering+1)/pool_size
-	# construct a fully-connected sigmoidal layer
+
 	layer2 = HiddenLayer(rng, input=layer2_input, n_in=nkerns[1] * (l1h) * (l1w),
-						 n_out=n_out, activation=T.tanh)
+						 n_out=n_out, activation= activation)
 
-	# classify the values of the fully-connected sigmoidal layer
-	unsup_feats = T.nnet.sigmoid(T.dot(x, denW) + denB)
-	final_layer = T.concatenate([layer2.output,unsup_feats], axis=1)
+	prev_layer = layer2.output
+	if hidden_layer == True:
+		layer25 = HiddenLayer(rng,input=prev_layer, n_in=n_in, n_out=300,activation= activation)
+		prev_layer = layer25.output
+		n_in = 300
+		params += layer25.params
 
-	layer3 = LogisticRegression(input=final_layer, n_in=n_in+denshape, n_out=10)
+	if denshape != 1:
+		layerX = x.reshape((batch_size, height * width * channel))
+		unsup_feats = T.nnet.sigmoid(T.dot(layerX, denW) + denB)
+		prev_layer = T.concatenate([prev_layer,unsup_feats], axis=1)
+		n_in = n_in + denshape
 
-	# the cost we minimize during training is the NLL of the model
+	layer3 = LogisticRegression(input=prev_layer, n_in=n_in, n_out=10)
+
 	cost = layer3.negative_log_likelihood(y)
 
-	# create a function to compute the mistakes that are made by the model
 	test_model = theano.function([index], layer3.errors(y),
 			 givens={
 				x: test_set_x[index * batch_size: (index + 1) * batch_size],
@@ -204,11 +234,13 @@ def evaluate_lenet5(learning_rate=0.1,l_decay = 1, n_epochs=200,dataset='mnist.p
 				x: valid_set_x[index * batch_size: (index + 1) * batch_size],
 				y: valid_set_y[index * batch_size: (index + 1) * batch_size]})
 
-	# create a list of all model parameters to be fit by gradient descent
-	params = layer3.params + layer2.params + layer1.params + layer0.params
+	params  += layer3.params + layer2.params + layer1.params + layer0.params
 
 	# create a list of gradients for all model parameters
 	grads = T.grad(cost, params)
+
+	decay_learning_rate = theano.function(inputs=[], outputs=learning_rate,
+            updates={learning_rate: learning_rate * lr_decay})
 
 	updates = []
 	for param_i, grad_i in zip(params, grads):
@@ -260,9 +292,9 @@ def evaluate_lenet5(learning_rate=0.1,l_decay = 1, n_epochs=200,dataset='mnist.p
 				validation_losses = [validate_model(i) for i
 									 in xrange(n_valid_batches)]
 				this_validation_loss = numpy.mean(validation_losses)
-				print('epoch %i, minibatch %i/%i, validation error %f %%' % \
+				print('epoch %i, minibatch %i/%i, validation error %f %%, lrate %f' % \
 					  (epoch, minibatch_index + 1, n_train_batches, \
-					   this_validation_loss * 100.))
+					   this_validation_loss * 100.,learning_rate.get_value(borrow=True)))
 
 				# if we got the best validation score until now
 				if this_validation_loss < best_validation_loss:
@@ -287,7 +319,7 @@ def evaluate_lenet5(learning_rate=0.1,l_decay = 1, n_epochs=200,dataset='mnist.p
 			if patience <= iter:
 				done_looping = True
 				break
-
+		n_learning_rate = decay_learning_rate()
 	end_time = time.clock()
 	print('Optimization complete.')
 	print('Best validation score of %f %% obtained at iteration %i,'\
@@ -297,14 +329,45 @@ def evaluate_lenet5(learning_rate=0.1,l_decay = 1, n_epochs=200,dataset='mnist.p
 						  os.path.split(__file__)[1] +
 						  ' ran for %.2fm' % ((end_time - start_time) / 60.))
 
+def printParameters(p):
+	print p.n_epochs
+	print p.batch_size
+
+	print p.learning_rate
+	print p.lr_decay
+
+	print p.nkerns0
+	print p.nkerns1
+	print p.filtering
+	print p.pool_size
+	print p.hidden_size
+
+	print p.hidden_layer
+	print p.conv_layer
+	print p.act
+
+	print p.benchmark
+	print p.channel
+	print p.height
+	print p.width
+
+
+
+
 if __name__ == '__main__':
 	parser = get_parser()
 	p = parser.parse_args()
 
-	pkl_file = open(p.da_file, 'rb')
-	denoiser = pickle.load(pkl_file)
-	dW = denoiser.W.get_value()
-	dbias = denoiser.b.get_value()
-	(dummy,denshape) = dW.shape
+	if p.da_file is not "":
+		pkl_file = open(p.da_file, 'rb')
+		denoiser = pickle.load(pkl_file)
+		dW = denoiser.W.get_value()
+		dbias = denoiser.b.get_value()
+		(dummy,denshape) = dW.shape
+	else:
+		denshape = 1
+		dbias = numpy.zeros(1)
+		dW = numpy.zeros((1,1))
+#	printParameters(p)
 
-	evaluate_lenet5(learning_rate = p.learning_rate, l_decay = p.l_decay,  n_epochs = p.n_epochs, nkerns0 = p.nkerns0, nkerns1 = p.nkerns1, batch_size = p.batch_size, pool_size = p.pool_size, filtering = p.filtering, hidden_size = p.hidden_size, dW = dW, dbias = dbias, denshape = denshape, dataset = p.benchmark)
+	evaluate_lenet5(init_learning_rate = p.learning_rate, lr_decay = p.lr_decay,  n_epochs = p.n_epochs, nkerns0 = p.nkerns0, nkerns1 = p.nkerns1, batch_size = p.batch_size, pool_size = p.pool_size, filtering = p.filtering, hidden_size = p.hidden_size, dW = dW, dbias = dbias, denshape = denshape, dataset = p.benchmark, conv_layer = p.conv_layer, hidden_layer = p.hidden_layer,activation = act[p.act], channel = p.channel, height = p.height, width = p.width)
